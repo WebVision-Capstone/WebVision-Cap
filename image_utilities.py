@@ -1,12 +1,128 @@
 """ image processing utilities """
+from pathlib2 import Path
+import os
+import numpy as np
 
+import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Input
 
+import IPython.display as display
+from PIL import Image
+import matplotlib.pyplot as plt
+
+#############################################################################
+############################ PRE REQUISITS ##################################
+#############################################################################
 
 train_dir = Path('d:\\data\\train')
 val_dir = Path('d:\\data\\val')
+image_count = len(list(train_dir.glob('*/*.jpg'))) #5162596
+val_image_count = len(list(val_dir.glob('*/*.jpg'))) #294099 
+CLASS_NAMES = np.array([item.name for item in train_dir.iterdir()])
+BATCH_SIZE = 39
+IMG_HEIGHT = 150 #keep images small to save time
+IMG_WIDTH = 150
+STEPS_PER_EPOCH = np.ceil(image_count / BATCH_SIZE)
+
+#############################################################################
+#############################################################################
+############################### TF DATA GENERATORS ##########################
+#############################################################################
+#############################################################################
+
+def make_tfds(train_dir, val_dir):
+    """ processes the training and validation sets """
+    """ RUN DEPENDENT FUNCTIONS FIRST """
+    """ dependencies: """
+    """ process_path, prepare_for_training """
+    #training image pathlist
+    list_ds = tf.data.Dataset.list_files(str(train_dir / '*/*'))
+    #validation image pathlist
+    list_val_ds = tf.data.Dataset.list_files(str(val_dir / '*/*'))
+
+    # setting up for parallel processing
+    AUTOTUNE = tf.data.experimental.AUTOTUNE
+
+    # before running, define process_path, 
+    labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
+    labeled_val_ds = list_val_ds.map(process_path, num_parallel_calls = AUTOTUNE)
+
+    #before running, define prepare_for_training
+    train_ds = prepare_for_training(labeled_ds) # cache = './img_store.tfcache'
+    val_ds = prepare_for_training(labeled_val_ds)
+
+    return train_ds, val_ds
+
+def process_path(file_path):
+  label = get_label(file_path)
+  # load the raw data from the file as a string
+  img = tf.io.read_file(file_path)
+  img = decode_img(img)
+  return img, label
+
+def prepare_for_training(ds, cache=True, shuffle_buffer_size=1000):
+  # use `.cache(filename)` to cache preprocessing work for datasets that don't
+  # fit in memory.
+  # just replace `True` with a filename, such as './img_cache.tfcache'
+  if cache:
+    if isinstance(cache, str):
+      ds = ds.cache(cache)
+    else:
+      ds = ds.cache()
+
+  ds = ds.shuffle(buffer_size=shuffle_buffer_size)
+
+  # Repeat forever
+  ds = ds.repeat()
+
+  ds = ds.batch(BATCH_SIZE)
+
+  # `prefetch` lets the dataset fetch batches in the background while the model
+  # is training.
+  ds = ds.prefetch(buffer_size=AUTOTUNE)
+
+  return ds
+
+
+##############################################################################
+############################# MISC TOOLS #####################################
+##############################################################################
+
+def show_batch(image_batch, label_batch):
+  plt.figure(figsize=(10,10))
+  for n in range(25):
+      ax = plt.subplot(5,5,n+1)
+      plt.imshow(image_batch[n])
+      plt.title(CLASS_NAMES[label_batch[n]==1][0].title())
+      plt.axis('off')
+
+def get_label(file_path):
+  # convert the path to a list of path components
+  parts = tf.strings.split(file_path, os.path.sep)
+  # The second to last is the class-directory
+  return parts[-2] == CLASS_NAMES
+
+def decode_img(img):
+  # convert the compressed string to a 3D uint8 tensor
+  img = tf.image.decode_jpeg(img, channels=3)
+  # Use `convert_image_dtype` to convert to floats in the [0,1] range.
+  img = tf.image.convert_image_dtype(img, tf.float32)
+  # resize the image to the desired size.
+  return tf.image.resize(img, [IMG_HEIGHT, IMG_WIDTH])
+
+
+
+
+
+
+
+
+##########################################################################
+##########################################################################
+###################### KERAS DATA GENERATORS #############################
+##########################################################################
 
 train_datagen = ImageDataGenerator(
     rescale = 1./255,
@@ -50,6 +166,11 @@ def limited_batch(generator, num):
             break
         return data_batch, labels_batch
 
+#################################################################################
+#################################################################################
+################################ CNN MODELS #####################################
+#################################################################################
+#################################################################################
 
 """ an implementation of LeNet as a toy model. It's small and trains faster. """
 """ Not a final model """
