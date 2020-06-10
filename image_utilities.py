@@ -207,7 +207,9 @@ toy_model.compile(optimizer='sgd',
 input_shape = (39, 150, 150, 3)
 toy_model.build(input_shape)
 toy_model.summary()
-toy_model.fit(limited_batch(train_generator, 1000), 
-              validation_data = limited_batch(val_generator, 1000),
-              epochs = 10
+toy_model.fit(train_ds, 
+              validation_data = val_ds,
+              steps_per_epoch= STEPS_PER_EPOCH,
+              validation_steps= np.ceil(294099/39),
+              epochs = 4
               )
