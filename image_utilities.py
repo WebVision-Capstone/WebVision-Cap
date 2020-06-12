@@ -13,6 +13,17 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 #############################################################################
+######################## SET MEMORY GROWTH = TRUE ###########################
+""" run this if you get ResourceExhaustedError """
+physical_devices = tf.config.list_physical_devices('GPU')
+try:
+  tf.config.experimental.set_memory_growth(physical_devices[0], True)
+  assert tf.config.experimental.get_memory_growth(physical_devices[0])
+except:
+  # Invalid device or cannot modify virtual devices once initialized.
+  pass
+
+#############################################################################
 ############################ PRE REQUISITS ##################################
 #############################################################################
 
@@ -119,6 +130,180 @@ def decode_img(img):
 
 
 
+
+#################################################################################
+#################################################################################
+################################ CNN MODELS #####################################
+#################################################################################
+#################################################################################
+
+
+#####################################################################################
+############################ FUNCTIONAL INCEPTION ###################################
+#####################################################################################
+
+""" If the object oriented version is run, then the verbiage won't provide the output
+shapes of any layers. It has to do with the use of .super """
+
+#load cifar to play with
+(train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
+# Normalize pixel values to be between 0 and 1
+train_images, test_images = train_images / 255.0, test_images / 255.0
+from tensorflow.keras.utils import to_categorical
+# make labels categories instead of integers
+train_labels, test_labels = to_categorical(train_labels), to_categorical(test_labels)
+
+#add something to make the generator spit out 20 at a time?
+# don't use this, it's not working and it's really not necessary
+train_ds = (item for item in zip(train_images, train_labels))
+val_ds = (item for item in zip(test_images, test_labels))
+
+
+def FunctionalInception(input_shape, batch_size, num_classes):
+    inputs = Input(shape = input_shape, batch_size = batch_size)
+    x = Conv2D(10, 
+               kernel_size = (1,1), 
+               padding = 'same',
+               activation = 'relu')(inputs)
+    x = Conv2D(10, 
+               kernel_size = (3,3),
+               padding = 'same',
+               activation = 'relu')(x)
+    x2 = Conv2D(10, 
+               kernel_size = (1,1), 
+               padding = 'same',
+               activation = 'relu')(inputs)
+    x2 = Conv2D(10,
+               kernel_size = (5,5),
+               padding = 'same',
+               activation = 'relu')(x2)
+    x3 = MaxPooling2D(pool_size = (4,4),
+                     strides = (1,1),
+                     padding = 'same')(inputs)
+    x3 = Conv2D(10, 
+               kernel_size = (1,1), 
+               padding = 'same',
+               activation = 'relu')(x3)
+    block = tf.keras.layers.concatenate([x, x2, x3], axis =3)
+
+    x = Flatten()(block)
+    x = Dense(1200, activation= 'relu')(x) #1200
+    x = Dense(600, activation = 'relu')(x) #600
+    x = Dense(150, activation  = 'relu')(x) #150
+    x = Dense(num_classes, activation = 'softmax')(x)
+    
+    model = Model(inputs, x, name = 'FunctionalInception')
+
+    return model
+
+# THIS TRAINS ON CIFAR100. MODIFY FOR OUR DATA.
+ncept_layer = FunctionalInception((32,32,3), 5, 10)
+history = ncept_layer.fit(train_images, train_labels, 
+              validation_data = (test_images, test_labels),
+              #steps_per_epoch= STEPS_PER_EPOCH, comment out if not using generator
+              #validation_steps= VAL_STEPS_PER_EPOCH,
+              epochs = 4
+              )
+#####################################################################################
+####################################### LENET-5 #####################################
+#####################################################################################
+""" an implementation of LeNet as a toy model. It's small and trains faster. """
+""" Not a final model """
+class LeNet5(Model):
+    def __init__(self, num_classes):
+        super(LeNet5, self).__init__()
+        self.conv1 = Conv2D(2, 
+                            kernel_size = (5,5), 
+                            padding = 'same',
+                            activation = 'relu')
+        self.conv2 = Conv2D(8, 
+                            kernel_size = (5,5),
+                            padding = 'same',
+                            activation = 'relu')
+        self.max_pool = MaxPooling2D(pool_size = (3,3))
+        self.flatten = Flatten()
+        self.dense1 = Dense(120, activation= 'relu')
+        self.dense2 = Dense(84, activation = 'relu')
+        self.dense3 = Dense(num_classes, activation  = 'softmax')
+    def call(self, x):
+        x = self.max_pool(self.conv1(x))
+        x = self.max_pool(self.conv2(x))
+        x = self.flatten(x)
+        x = self.dense3(self.dense2(self.dense1(x)))
+        return x
+
+toy_model = LeNet5(5000)
+toy_model.compile(optimizer='sgd', 
+              loss='categorical_crossentropy', 
+              metrics=['accuracy'])
+
+#what is the input shape?
+# (batch_size, height, width, rgb channels)
+input_shape = (3, 150, 150, 3)
+toy_model.build(input_shape)
+toy_model.summary()
+history = toy_model.fit(train_ds, 
+              validation_data = val_ds,
+              steps_per_epoch= STEPS_PER_EPOCH,
+              validation_steps= np.ceil(294099/39),
+              epochs = 4
+              )
+
+###########################################################################33
+############################ SINGLE INCEPTION LAYER #########################
+#############################################################################
+""" HAS BUG """
+class Inception(Model):
+    def __init__(self, num_classes):
+        super(Inception, self).__init__()
+        self.conv1 = Conv2D(10, 
+                            kernel_size = (1,1), 
+                            padding = 'same',
+                            activation = 'relu')
+        self.conv2 = Conv2D(10, 
+                            kernel_size = (3,3),
+                            padding = 'same',
+                            activation = 'relu')
+        self.conv3 = Conv2D(10,
+                            kernel_size = (5,5),
+                            padding = 'same',
+                            activation = 'relu')
+        self.max_pool = MaxPooling2D(pool_size = (3,3),
+                                     strides = (1,1),
+                                     padding = 'same')
+        self.flatten = Flatten()
+        self.dense1 = Dense(1200, activation= 'relu')
+        self.dense2 = Dense(600, activation = 'relu')
+        self.dense3 = Dense(150, activation  = 'relu')
+        self.dense4 = Dense(num_classes, activation = 'softmax')
+    def call(self, x):
+        layer_1 = self.conv2(self.conv1(x))
+        layer_2 = self.conv3(self.conv1(x))
+        layer_3 = self.conv1(self.max_pool(x))
+        x = tf.keras.layers.concatenate([layer_1, layer_2, layer_3], axis =3)
+        x = self.flatten(x)
+        x = self.dense4(self.dense3(self.dense2(self.dense1(x))))
+        return x
+
+batch_size = 39
+STEPS_PER_EPOCH = np.ceil(train_images.shape[0] / batch_size)
+VAL_STEPS_PER_EPOCH = np.ceil(test_images.shape[0] / batch_size)
+mception = Inception(10)
+mception.compile(optimizer='sgd', 
+              loss='categorical_crossentropy', 
+              metrics=['accuracy'])
+
+input_shape = (39, 150, 150, 3)
+mception.build(input_shape)
+mception.summary()
+history = mception.fit(train_images, train_labels, 
+              validation_data = (test_images, test_labels),
+              steps_per_epoch= STEPS_PER_EPOCH, #comment out if not using generator
+              validation_steps= VAL_STEPS_PER_EPOCH, #same
+              epochs = 4
+              )
+
+
 ##########################################################################
 ##########################################################################
 ###################### KERAS DATA GENERATORS #############################
@@ -165,51 +350,3 @@ def limited_batch(generator, num):
         if x > num:
             break
         return data_batch, labels_batch
-
-#################################################################################
-#################################################################################
-################################ CNN MODELS #####################################
-#################################################################################
-#################################################################################
-
-""" an implementation of LeNet as a toy model. It's small and trains faster. """
-""" Not a final model """
-class LeNet5(Model):
-    def __init__(self, num_classes):
-        super(LeNet5, self).__init__()
-        self.conv1 = Conv2D(6, 
-                            kernel_size = (5,5), 
-                            padding = 'same',
-                            activation = 'relu')
-        self.conv2 = Conv2D(16, 
-                            kernel_size = (5,5),
-                            padding = 'same',
-                            activation = 'relu')
-        self.max_pool = MaxPooling2D(pool_size = (2,2))
-        self.flatten = Flatten()
-        self.dense1 = Dense(120, activation= 'relu')
-        self.dense2 = Dense(84, activation = 'relu')
-        self.dense3 = Dense(num_classes, activation  = 'softmax')
-    def call(self, x):
-        x = self.max_pool(self.conv1(x))
-        x = self.max_pool(self.conv2(x))
-        x = self.flatten(x)
-        x = self.dense3(self.dense2(self.dense1(x)))
-        return x
-
-toy_model = LeNet5(5000)
-toy_model.compile(optimizer='sgd', 
-              loss='categorical_crossentropy', 
-              metrics=['accuracy'])
-
-#what is the input shape?
-# (batch_size, height, width, rgb channels)
-input_shape = (39, 150, 150, 3)
-toy_model.build(input_shape)
-toy_model.summary()
-toy_model.fit(train_ds, 
-              validation_data = val_ds,
-              steps_per_epoch= STEPS_PER_EPOCH,
-              validation_steps= np.ceil(294099/39),
-              epochs = 4
-              )
