@@ -1,8 +1,10 @@
 """General utilities
 """
 
-import tensorflow as tf
 from typing import List
+
+import matplotlib.pyplot as plt
+import tensorflow as tf
 
 def plot_accuracy_loss(history: tf.keras.callbacks.History,
                        acc_items: List[str],
