@@ -43,7 +43,7 @@ class BaseDataGenerator(Sequence):
 
         # create a label maker
         # targeting sparse categorical crossentropy
-        classes = set(glob.glob(self.path + '*'))
+        classes = sorted(glob.glob(self.path + '*'))
         for i, label in enumerate(classes):
             label = label.split('/')[-1]
             self.classes.append(label)
