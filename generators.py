@@ -278,3 +278,49 @@ class ImageGenerator(BaseDataGenerator):
         # images, descriptions, titles, labels
         return (np.array(images).reshape(*img_reshape_size),
                np.array(labels))
+
+def get_generators(generator_type: str,
+                   primary_path: str,
+                   batch_size: int,
+                   img_size: Tuple[int],
+                   sampling_frac: float = None) -> Tuple[Sequence]:
+    """
+
+    :param path: path to data tree; should contain train and validation
+    :param batch_size: size of batches used in training
+    :param target_size: image size
+    :param sample_frac: per class sampling
+    :return: tuple of training data gen and validation generator
+    """
+    # pick the type of class to use
+    if generator_type == 'image':
+        training_data_cls = ImageGenerator
+        validation_data_cls = ImageGenerator
+    elif generator_type == 'text':
+        training_data_cls = MetaDataGenerator
+        validation_data_cls = MetaDataGenerator
+    elif generator_type == 'multi':
+        training_data_cls = ImageMetaDataGenerator
+        validation_data_cls = ImageMetaDataGenerator
+    else:
+        raise ValueError('generator type not understood must be one of \
+            [image, texxt, multi]')
+
+    # build generators
+    training_data = training_data_cls(
+            primary_path + 'train/',
+            batch_size,
+            img_size,
+            scaling=(1. / 255),
+            sample_frac=sampling_frac
+            )
+
+    validation_data = validation_data_cls(
+            primary_path + 'validation/',
+            batch_size, 
+            img_size,
+            scaling=(1. / 255),
+            sample_frac=sampling_frac
+            )
+
+    return training_data, validation_data
