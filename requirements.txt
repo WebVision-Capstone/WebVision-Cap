@@ -1,0 +1,9 @@
+
+# conda install -r requirements.txt
+
+tensorflow-gpu
+tensorflow_hub
+numpy
+scikit-learn
+matplotlib
+pillow
