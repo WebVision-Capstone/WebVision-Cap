@@ -57,16 +57,20 @@ def bert_encode(x_data: List[str], tokenizer, seq_len: int) -> List[tf.Tensor]:
 def format_metadata_output(descriptions: List[str],
                            titles: List[str], 
                            tokenizer = None, 
-                           max_len: int = 0) -> List[Union[np.ndarray, tf.Tensor]]:
+                           max_len: Union[int, List[int]] = 0) -> List[Union[np.ndarray, tf.Tensor]]:
     """Format metadata output for BERT and USE models
     """
     formatted_data = list()
 
+    # make the input max_len interable is not a list
+    if isinstance(max_len, int):
+        max_lens = [max_len] * 2
+    else:
+        max_lens = max_len
+
     if tokenizer is not None:
-        # encode descriptions
-        formatted_data += bert_encode(descriptions, tokenizer, max_len)
-        # encode titles
-        formatted_data += bert_encode(titles, tokenizer, max_len)
+        for attr, max_length in zip([descriptions, titles], max_lens):
+            formatted_data += bert_encode(attr, tokenizer, max_length)
     else:
         formatted_data += descriptions
         formatted_data += titles
@@ -181,7 +185,7 @@ class ImageMetaDataGenerator(BaseDataGenerator):
                  sample_frac: float = None,
                  class_limit: int = None,
                  bert_tokenizer = None,
-                 bert_sentence_len: int = 0) -> None:
+                 bert_sentence_len: Union[int, List[int]] = 0) -> None:
         """Constructor
         
         :param path: path to data tree
@@ -276,7 +280,7 @@ class MetaDataGenerator(BaseDataGenerator):
                  preshuffle: bool = True,
                  class_limit: int = None,
                  bert_tokenizer = None,
-                 bert_sentence_len: int = 0
+                 bert_sentence_len: Union[int, List[int]] = 0
                  ) -> None:
         """Constructor
         
