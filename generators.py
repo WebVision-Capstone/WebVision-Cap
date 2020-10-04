@@ -72,8 +72,7 @@ def format_metadata_output(descriptions: List[str],
         for attr, max_length in zip([descriptions, titles], max_lens):
             formatted_data += bert_encode(attr, tokenizer, max_length)
     else:
-        formatted_data += descriptions
-        formatted_data += titles
+        formatted_data = [np.array(descriptions), np.array(titles)]
     return formatted_data
 
 
@@ -111,7 +110,7 @@ class BaseDataGenerator(Sequence):
 
         # create a label maker
         # targeting sparse categorical crossentropy
-        classes = sorted(glob.glob(self.path + '*')[ : class_limit ])
+        classes = sorted(glob.glob(self.path + '*'))[ : class_limit ]
         for i, label in enumerate(classes):
             label = label.split('/')[-1]
             self.classes.append(label)
@@ -336,15 +335,21 @@ class MetaDataGenerator(BaseDataGenerator):
                 ]
             )
         
-        formatted_data = format_metadata_output(
-            descriptions,
-            titles,
-            self.tokenizer,
-            self.max_seq_len
-        )
+        if self.bert_tokenize:
+            formatted_data = format_metadata_output(
+                descriptions,
+                titles,
+                self.tokenizer,
+                self.max_seq_len
+            )
 
-        # descriptions, titles, labels
-        return (formatted_data, np.array(labels))
+            # descriptions, titles, labels
+            return (formatted_data, np.array(labels))
+        else:
+            return ([np.array(descriptions),
+               np.array(titles)],
+               np.array(labels))
+
 
 class ImageGenerator(BaseDataGenerator):
     """Keras-like data generator for image and metadata
