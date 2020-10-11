@@ -3,5 +3,6 @@
 
 tensorflow-gpu
 tensorflow-hub
+tf-models-official
 scikit-learn
 pillow
